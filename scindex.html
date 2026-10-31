@@ -1,0 +1,983 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-HK" class="h-full bg-slate-900 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>密碼與資料寶盒 - Secure Password Manager</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0284c7',
+              700: '#0369a1',
+              800: '#075985',
+              900: '#0c4a6e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- CryptoJS for Encryption -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    /* Mobile-like scrollbar & smooth layout */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.8);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="h-full flex justify-center items-center p-0 sm:p-4 bg-slate-950 overflow-hidden select-none">
+
+  <!-- Main Mobile Shell container -->
+  <div class="w-full h-full sm:max-w-md sm:h-[844px] bg-slate-900 sm:rounded-[36px] border-0 sm:border-8 border-slate-800 shadow-2xl flex flex-col overflow-hidden relative">
+
+    <!-- Header Bar -->
+    <header id="app-header" class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between z-20 shrink-0">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-md">
+          <i class="fa-solid fa-shield-halved text-lg"></i>
+        </div>
+        <h1 class="font-bold text-lg text-slate-100 tracking-wide">密碼寶盒</h1>
+      </div>
+      <div id="header-actions" class="flex items-center space-x-2 hidden">
+        <button id="lock-btn" title="鎖定寶盒" class="p-2 rounded-full text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition active:scale-95">
+          <i class="fa-solid fa-lock text-base"></i>
+        </button>
+        <button id="settings-btn" title="設定與備份" class="p-2 rounded-full text-slate-400 hover:text-cyan-400 hover:bg-slate-800 transition active:scale-95">
+          <i class="fa-solid fa-gear text-base"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Dynamic Content Container -->
+    <main id="main-content" class="flex-1 overflow-y-auto custom-scrollbar p-4 relative flex flex-col">
+      <!-- Dynamic Views populate here via JS -->
+    </main>
+
+    <!-- Global Toast Notification -->
+    <div id="toast" class="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 border border-slate-700 text-cyan-400 px-4 py-2 rounded-full shadow-2xl text-xs font-medium flex items-center space-x-2 transition-all duration-300 opacity-0 pointer-events-none translate-y-4 z-50">
+      <i id="toast-icon" class="fa-solid fa-check-circle"></i>
+      <span id="toast-msg">已成功複製到剪貼簿</span>
+    </div>
+
+  </div>
+
+  <!-- Password Generator Modal -->
+  <div id="pwd-gen-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 w-full max-w-xs rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h3 class="font-bold text-slate-100 flex items-center gap-2">
+          <i class="fa-solid fa-key text-cyan-400"></i> 強密碼生成器
+        </h3>
+        <button id="close-pwd-gen" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+        <span id="gen-pwd-output" class="font-mono text-sm break-all text-cyan-300 select-all">--------</span>
+        <button id="copy-gen-pwd" class="ml-2 text-slate-400 hover:text-cyan-400 p-1">
+          <i class="fa-regular fa-copy"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-300">
+        <div>
+          <div class="flex justify-between mb-1">
+            <span>密碼長度: <strong id="pwd-len-val" class="text-cyan-400">16</strong></span>
+          </div>
+          <input type="range" id="pwd-length" min="8" max="32" value="16" class="w-full accent-cyan-500 cursor-pointer">
+        </div>
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" id="pwd-inc-num" checked class="rounded border-slate-700 text-cyan-500 focus:ring-0">
+            <span>包含數字 (0-9)</span>
+          </label>
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" id="pwd-inc-sym" checked class="rounded border-slate-700 text-cyan-500 focus:ring-0">
+            <span>特殊符號 (!@#)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex gap-2 pt-2">
+        <button id="regen-pwd-btn" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-xl text-xs font-semibold transition">
+          重新生成
+        </button>
+        <button id="apply-pwd-btn" class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white py-2 rounded-xl text-xs font-semibold transition">
+          套用密碼
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION JAVASCRIPT LOGIC -->
+  <script>
+    /**
+     * Category Schema Definition
+     */
+    const CATEGORIES = [
+      { id: 'personal_bank', name: '個人銀行戶口', icon: 'fa-building-columns', color: 'from-blue-600 to-indigo-600', fields: [
+        { id: 'bankName', label: '銀行名稱', type: 'text', req: true },
+        { id: 'accName', label: '戶口持有人姓名', type: 'text', req: true },
+        { id: 'accNum', label: '戶口號碼', type: 'text', req: true, copy: true },
+        { id: 'pwd', label: '網銀 / 提款卡密碼', type: 'password', req: true, copy: true },
+        { id: 'updated', label: '更新日期', type: 'date', defaultToday: true },
+        { id: 'notes', label: '備註 / 安全提問', type: 'textarea' }
+      ]},
+      { id: 'corp_bank', name: '公司銀行戶口', icon: 'fa-briefcase', color: 'from-cyan-600 to-blue-700', fields: [
+        { id: 'companyName', label: '公司名稱', type: 'text', req: true },
+        { id: 'bankName', label: '銀行名稱', type: 'text', req: true },
+        { id: 'accName', label: '戶口名稱', type: 'text', req: true },
+        { id: 'accNum', label: '戶口號碼', type: 'text', req: true, copy: true },
+        { id: 'corpId', label: '商業登記 / 公司編號', type: 'text', copy: true },
+        { id: 'pwd', label: '密碼 / 授權簽署人', type: 'password', req: true, copy: true },
+        { id: 'updated', label: '更新日期', type: 'date', defaultToday: true }
+      ]},
+      { id: 'email', name: '郵箱帳號', icon: 'fa-envelope', color: 'from-sky-500 to-cyan-600', fields: [
+        { id: 'emailAddr', label: '郵箱地址', type: 'email', req: true, copy: true },
+        { id: 'pwd', label: '登入密碼', type: 'password', req: true, copy: true },
+        { id: 'recoveryEmail', label: '備用救援郵箱', type: 'email' },
+        { id: 'phone', label: '綁定電話號碼', type: 'text' },
+        { id: 'updated', label: '更新日期', type: 'date', defaultToday: true }
+      ]},
+      { id: 'wifi', name: 'WiFi 網絡', icon: 'fa-wifi', color: 'from-emerald-600 to-teal-600', fields: [
+        { id: 'ssid', label: 'WiFi 名稱 (SSID)', type: 'text', req: true, copy: true },
+        { id: 'pwd', label: 'WiFi 密碼', type: 'password', req: true, copy: true },
+        { id: 'routerIp', label: '路由器 IP 地址', type: 'text', placeholder: '192.168.1.1' },
+        { id: 'adminPwd', label: '管理員登入密碼', type: 'password' },
+        { id: 'location', label: '位置 / 備註', type: 'text' },
+        { id: 'updated', label: '更新日期', type: 'date', defaultToday: true }
+      ]},
+      { id: 'paid_web', name: '付費網站 / 訂閱', icon: 'fa-credit-card', color: 'from-purple-600 to-indigo-600', fields: [
+        { id: 'siteName', label: '網站 / 服務名稱', type: 'text', req: true },
+        { id: 'username', label: '登入帳號', type: 'text', req: true, copy: true },
+        { id: 'pwd', label: '密碼', type: 'password', req: true, copy: true },
+        { id: 'cost', label: '費用 (HKD/USD)', type: 'text' },
+        { id: 'cycle', label: '扣款週期', type: 'select', options: ['每月', '每年', '一次性', '其他'] },
+        { id: 'autoRenew', label: '自動續費', type: 'select', options: ['是', '否'] },
+        { id: 'dueDate', label: '到期日 / 下次扣款日', type: 'date' },
+        { id: 'paymentMethod', label: '付款方式', type: 'text', placeholder: '信用卡名稱 / PayPal' },
+        { id: 'updated', label: '更新日期', type: 'date', defaultToday: true }
+      ]},
+      { id: 'ai_web', name: 'AI 網站與工具', icon: 'fa-robot', color: 'from-fuchsia-600 to-pink-600', fields: [
+        { id: 'siteName', label: 'AI 平台名稱', type: 'text', req: true },
+        { id: 'username', label: '登入帳號 / 郵箱', type: 'text', req: true, copy: true },
+        { id: 'pwd', label: '密碼', type: 'password', req: true, copy: true },
+        { id: 'plan', label: '訂閱方案', type: 'select', options: ['免費版 (Free)', '專業版 (Pro)', '團隊版 (Team)', '按量付費 (API)'] },
+        { id: 'apiKey', label: 'API Key (如有)', type: 'password', copy: true },
+        { id: 'updated', label: '更新日期', type: 'date', defaultToday: true }
+      ]},
+      { id: 'gen_web', name: '一般網站', icon: 'fa-globe', color: 'from-amber-600 to-orange-600', fields: [
+        { id: 'siteName', label: '網站名稱', type: 'text', req: true },
+        { id: 'url', label: '網站網址 (URL)', type: 'url', placeholder: 'https://example.com' },
+        { id: 'username', label: '登入帳號 / 用戶名', type: 'text', req: true, copy: true },
+        { id: 'pwd', label: '密碼', type: 'password', req: true, copy: true },
+        { id: 'updated', label: '更新日期', type: 'date', defaultToday: true },
+        { id: 'notes', label: '備註', type: 'textarea' }
+      ]},
+      { id: 'birthday', name: '生日日期與提醒', icon: 'fa-cake-candles', color: 'from-rose-600 to-red-600', fields: [
+        { id: 'personName', label: '姓名', type: 'text', req: true },
+        { id: 'birthDate', label: '出生日期', type: 'date', req: true },
+        { id: 'relation', label: '關係', type: 'text', placeholder: '家人 / 朋友 / 同事' },
+        { id: 'calendarType', label: '生日類型', type: 'select', options: ['公曆 (西曆)', '農曆'] },
+        { id: 'notes', label: '備註 / 送禮喜好', type: 'textarea' }
+      ]}
+    ];
+
+    /**
+     * App State & Local Storage Keys
+     */
+    const STORAGE_SALT_KEY = 'vault_master_salt';
+    const STORAGE_VERIFY_KEY = 'vault_master_verify';
+    const STORAGE_DATA_KEY = 'vault_encrypted_data';
+
+    let masterKey = null; // Session key derived from master password
+    let currentVault = []; // Decrypted vault items array
+    let activeCategory = null;
+    let pwdTargetInputId = null;
+
+    // DOM Elements
+    const mainContent = document.getElementById('main-content');
+    const headerActions = document.getElementById('header-actions');
+    const lockBtn = document.getElementById('lock-btn');
+    const settingsBtn = document.getElementById('settings-btn');
+    const pwdGenModal = document.getElementById('pwd-gen-modal');
+
+    /**
+     * Initialize Application
+     */
+    window.addEventListener('DOMContentLoaded', () => {
+      initApp();
+      setupPasswordGenEvents();
+
+      lockBtn.addEventListener('click', lockVault);
+      settingsBtn.addEventListener('click', renderSettingsView);
+    });
+
+    function initApp() {
+      masterKey = null;
+      currentVault = [];
+      headerActions.classList.add('hidden');
+
+      const salt = localStorage.getItem(STORAGE_SALT_KEY);
+      if (!salt) {
+        renderSetupMasterView();
+      } else {
+        renderUnlockView();
+      }
+    }
+
+    /**
+     * Encryption Helpers (AES-256 via CryptoJS)
+     */
+    function deriveKey(password, saltHex) {
+      return CryptoJS.PBKDF2(password, CryptoJS.enc.Hex.parse(saltHex), {
+        keySize: 256 / 32,
+        iterations: 10000
+      }).toString();
+    }
+
+    function saveVaultToStorage() {
+      if (!masterKey) return;
+      const jsonString = JSON.stringify(currentVault);
+      const encrypted = CryptoJS.AES.encrypt(jsonString, masterKey).toString();
+      localStorage.setItem(STORAGE_DATA_KEY, encrypted);
+    }
+
+    function loadVaultFromStorage() {
+      const encrypted = localStorage.getItem(STORAGE_DATA_KEY);
+      if (!encrypted) {
+        currentVault = [];
+        return true;
+      }
+      try {
+        const decryptedBytes = CryptoJS.AES.decrypt(encrypted, masterKey);
+        const jsonString = decryptedBytes.toString(CryptoJS.enc.Utf8);
+        if (!jsonString) return false;
+        currentVault = JSON.parse(jsonString);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    /**
+     * Toast System
+     */
+    function showToast(msg, icon = 'fa-check-circle') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-msg');
+      const toastIcon = document.getElementById('toast-icon');
+
+      toastMsg.innerText = msg;
+      toastIcon.className = `fa-solid ${icon}`;
+
+      toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+      }, 2200);
+    }
+
+    /**
+     * Clipboard Copy Tool
+     */
+    function copyToClipboard(text, label = '資料') {
+      if (!text) return;
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => showToast(`已複製${label}`));
+      } else {
+        const input = document.createElement('textarea');
+        input.value = text;
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.focus();
+        input.select();
+        try {
+          document.execCommand('copy');
+          showToast(`已複製${label}`);
+        } catch (err) {
+          showToast('複製失敗', 'fa-triangle-exclamation');
+        }
+        document.body.removeChild(input);
+      }
+    }
+
+    /**
+     * VIEW 1: Initial Master Password Setup
+     */
+    function renderSetupMasterView() {
+      mainContent.innerHTML = `
+        <div class="flex-1 flex flex-col justify-center items-center py-6 space-y-6">
+          <div class="text-center space-y-2">
+            <div class="w-16 h-16 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl mx-auto flex items-center justify-center text-white shadow-xl">
+              <i class="fa-solid fa-user-shield text-2xl"></i>
+            </div>
+            <h2 class="text-xl font-bold text-slate-100 pt-2">初始化安全寶盒</h2>
+            <p class="text-xs text-slate-400 max-w-xs">請設定解鎖主密碼。所有敏感資料將使用 AES-256 在本地進行加密。</p>
+          </div>
+
+          <form id="setup-form" class="w-full space-y-4 max-w-xs">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">主密碼 (Master Password)</label>
+              <input type="password" id="setup-pwd" required minlength="6" placeholder="至少 6 位密碼" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-cyan-500 text-slate-100">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">確認主密碼</label>
+              <input type="password" id="setup-pwd-confirm" required placeholder="再次輸入主密碼" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm focus:outline-none focus:border-cyan-500 text-slate-100">
+            </div>
+            <button type="submit" class="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold rounded-xl text-sm shadow-lg hover:brightness-110 active:scale-95 transition">
+              建立安全寶盒
+            </button>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('setup-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const p1 = document.getElementById('setup-pwd').value;
+        const p2 = document.getElementById('setup-pwd-confirm').value;
+
+        if (p1 !== p2) {
+          showToast('兩次密碼輸入不一致', 'fa-triangle-exclamation');
+          return;
+        }
+
+        // Generate salt & store verification token
+        const salt = CryptoJS.lib.WordArray.random(128 / 8).toString();
+        const derivedKey = deriveKey(p1, salt);
+        const verifyHash = CryptoJS.SHA256(derivedKey + salt).toString();
+
+        localStorage.setItem(STORAGE_SALT_KEY, salt);
+        localStorage.setItem(STORAGE_VERIFY_KEY, verifyHash);
+
+        masterKey = derivedKey;
+        saveVaultToStorage();
+
+        showToast('寶盒已成功建立');
+        renderHomeView();
+      });
+    }
+
+    /**
+     * VIEW 2: Unlock Vault View
+     */
+    function renderUnlockView() {
+      mainContent.innerHTML = `
+        <div class="flex-1 flex flex-col justify-center items-center py-6 space-y-6">
+          <div class="text-center space-y-2">
+            <div class="w-16 h-16 bg-slate-800 border border-slate-700 rounded-2xl mx-auto flex items-center justify-center text-cyan-400 shadow-xl">
+              <i class="fa-solid fa-lock text-2xl"></i>
+            </div>
+            <h2 class="text-xl font-bold text-slate-100 pt-2">請解鎖寶盒</h2>
+            <p class="text-xs text-slate-400">輸入主密碼以解密您的資料</p>
+          </div>
+
+          <form id="unlock-form" class="w-full space-y-4 max-w-xs">
+            <div>
+              <input type="password" id="unlock-pwd" required placeholder="請輸入主密碼" class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-center focus:outline-none focus:border-cyan-500 text-slate-100">
+            </div>
+            <button type="submit" class="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded-xl text-sm shadow-lg active:scale-95 transition">
+              解鎖 (Unlock)
+            </button>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('unlock-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const pwd = document.getElementById('unlock-pwd').value;
+        const salt = localStorage.getItem(STORAGE_SALT_KEY);
+        const storedVerify = localStorage.getItem(STORAGE_VERIFY_KEY);
+
+        const derivedKey = deriveKey(pwd, salt);
+        const verifyHash = CryptoJS.SHA256(derivedKey + salt).toString();
+
+        if (verifyHash === storedVerify) {
+          masterKey = derivedKey;
+          if (loadVaultFromStorage()) {
+            showToast('解鎖成功');
+            renderHomeView();
+          } else {
+            showToast('資料解密失敗', 'fa-triangle-exclamation');
+          }
+        } else {
+          showToast('主密碼錯誤', 'fa-triangle-exclamation');
+        }
+      });
+    }
+
+    function lockVault() {
+      masterKey = null;
+      currentVault = [];
+      showToast('寶盒已鎖定', 'fa-lock');
+      renderUnlockView();
+      headerActions.classList.add('hidden');
+    }
+
+    /**
+     * VIEW 3: Home View (Category Selection + Universal Search)
+     */
+    function renderHomeView() {
+      headerActions.classList.remove('hidden');
+
+      mainContent.innerHTML = `
+        <div class="space-y-4">
+          <!-- Universal Search Bar -->
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-500 text-sm"></i>
+            <input type="text" id="global-search" placeholder="搜尋全庫 (例如: HSBC, Gmail, WiFi)..." class="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+          </div>
+
+          <!-- Dynamic Search Results or Categories -->
+          <div id="search-results-container" class="hidden space-y-2">
+            <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">搜尋結果</h3>
+            <div id="search-results-list" class="space-y-2"></div>
+          </div>
+
+          <div id="categories-grid-container" class="space-y-3">
+            <div class="flex justify-between items-center px-1">
+              <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider">大分類選單</h2>
+              <span class="text-[11px] text-slate-500">共 ${currentVault.length} 筆記錄</span>
+            </div>
+
+            <!-- Categories Grid -->
+            <div class="grid grid-cols-2 gap-3">
+              ${CATEGORIES.map(cat => {
+                const count = currentVault.filter(i => i.catId === cat.id).length;
+                return `
+                  <button onclick="renderCategoryView('${cat.id}')" class="p-3.5 bg-slate-800/60 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-2xl flex flex-col justify-between text-left transition active:scale-95 group">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr ${cat.color} flex items-center justify-center text-white shadow-md mb-2 group-hover:scale-105 transition">
+                      <i class="fa-solid ${cat.icon} text-sm"></i>
+                    </div>
+                    <div>
+                      <h3 class="font-bold text-xs text-slate-200">${cat.name}</h3>
+                      <p class="text-[10px] text-slate-400 mt-0.5">${count} 筆記錄</p>
+                    </div>
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Universal Search Handler
+      const searchInput = document.getElementById('global-search');
+      const searchContainer = document.getElementById('search-results-container');
+      const searchList = document.getElementById('search-results-list');
+      const gridContainer = document.getElementById('categories-grid-container');
+
+      searchInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        if (!q) {
+          searchContainer.classList.add('hidden');
+          gridContainer.classList.remove('hidden');
+          return;
+        }
+
+        searchContainer.classList.remove('hidden');
+        gridContainer.classList.add('hidden');
+
+        const results = currentVault.filter(item => {
+          return Object.values(item.data).some(val => String(val).toLowerCase().includes(q));
+        });
+
+        if (results.length === 0) {
+          searchList.innerHTML = `<div class="text-center py-8 text-xs text-slate-500">沒有找到相關資料</div>`;
+          return;
+        }
+
+        searchList.innerHTML = results.map(item => renderItemCardHTML(item)).join('');
+      });
+    }
+
+    /**
+     * VIEW 4: Category Items List View
+     */
+    function renderCategoryView(catId) {
+      activeCategory = CATEGORIES.find(c => c.id === catId);
+      const items = currentVault.filter(i => i.catId === catId);
+
+      mainContent.innerHTML = `
+        <div class="space-y-4">
+          <!-- Top Navigation Header -->
+          <div class="flex items-center justify-between">
+            <button onclick="renderHomeView()" class="flex items-center space-x-1 text-xs text-slate-400 hover:text-white py-1">
+              <i class="fa-solid fa-chevron-left"></i>
+              <span>返回首頁</span>
+            </button>
+            <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid ${activeCategory.icon} text-cyan-400"></i> ${activeCategory.name}
+            </span>
+          </div>
+
+          <!-- Add New Item Button -->
+          <button onclick="renderFormView('${catId}')" class="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:brightness-110 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 shadow-md active:scale-95 transition">
+            <i class="fa-solid fa-plus"></i>
+            <span>新增 ${activeCategory.name} 資料</span>
+          </button>
+
+          <!-- Items List -->
+          <div class="space-y-3 pt-1">
+            ${items.length === 0 ? `
+              <div class="text-center py-12 text-slate-500 text-xs">
+                尚無資料，點擊上方按鈕新增第一筆
+              </div>
+            ` : items.map(item => renderItemCardHTML(item)).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * HTML Card Component for Items
+     */
+    function renderItemCardHTML(item) {
+      const cat = CATEGORIES.find(c => c.id === item.catId);
+      const titleKey = cat.fields[0].id;
+      const titleVal = item.data[titleKey] || '未命名項';
+
+      // Find fields marked for quick copying
+      const copyFields = cat.fields.filter(f => f.copy && item.data[f.id]);
+
+      return `
+        <div class="bg-slate-800/60 border border-slate-800 rounded-2xl p-3.5 space-y-3 hover:border-slate-700 transition">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-8 h-8 rounded-lg bg-slate-700/60 flex items-center justify-center text-cyan-400 text-xs">
+                <i class="fa-solid ${cat.icon}"></i>
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-slate-100">${escapeHtml(titleVal)}</h4>
+                <p class="text-[10px] text-slate-400">${cat.name}</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-1">
+              <button onclick="renderFormView('${item.catId}', '${item.id}')" class="p-1.5 text-slate-400 hover:text-cyan-400 rounded-lg hover:bg-slate-700/50 transition">
+                <i class="fa-solid fa-pen-to-square text-xs"></i>
+              </button>
+              <button onclick="deleteItem('${item.id}')" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700/50 transition">
+                <i class="fa-solid fa-trash text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Fields Details Grid -->
+          <div class="grid grid-cols-1 gap-1.5 pt-1 border-t border-slate-800/80">
+            ${cat.fields.map(f => {
+              const val = item.data[f.id];
+              if (!val) return '';
+              const isPassword = f.type === 'password';
+              return `
+                <div class="flex justify-between items-center text-[11px]">
+                  <span class="text-slate-400">${f.label}:</span>
+                  <div class="flex items-center space-x-1 max-w-[60%]">
+                    <span id="field-val-${item.id}-${f.id}" class="font-mono text-slate-200 truncate" data-raw="${escapeHtml(val)}">
+                      ${isPassword ? '••••••••' : escapeHtml(val)}
+                    </span>
+                    ${isPassword ? `
+                      <button onclick="togglePasswordVisibility('field-val-${item.id}-${f.id}', this)" class="text-slate-500 hover:text-slate-300 p-0.5">
+                        <i class="fa-regular fa-eye text-[10px]"></i>
+                      </button>
+                    ` : ''}
+                    ${f.copy ? `
+                      <button onclick="copyToClipboard('${escapeJsString(val)}', '${f.label}')" class="text-slate-400 hover:text-cyan-400 p-0.5">
+                        <i class="fa-regular fa-copy text-[10px]"></i>
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * VIEW 5: Add / Edit Item Form Generator
+     */
+    function renderFormView(catId, itemId = null) {
+      const cat = CATEGORIES.find(c => c.id === catId);
+      const isEdit = !!itemId;
+      const existingItem = isEdit ? currentVault.find(i => i.id === itemId) : null;
+      const formData = existingItem ? existingItem.data : {};
+
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      mainContent.innerHTML = `
+        <div class="space-y-4">
+          <!-- Top Header -->
+          <div class="flex items-center justify-between">
+            <button onclick="renderCategoryView('${catId}')" class="flex items-center space-x-1 text-xs text-slate-400 hover:text-white py-1">
+              <i class="fa-solid fa-chevron-left"></i>
+              <span>取消</span>
+            </button>
+            <span class="text-xs font-semibold text-slate-300">
+              ${isEdit ? '修改資料' : '新增資料'} (${cat.name})
+            </span>
+          </div>
+
+          <!-- Dynamic Form -->
+          <form id="item-form" class="space-y-3">
+            ${cat.fields.map(f => {
+              let value = formData[f.id] !== undefined ? formData[f.id] : '';
+              if (!isEdit && f.defaultToday && !value) value = todayStr;
+
+              if (f.type === 'select') {
+                return `
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">${f.label} ${f.req ? '*' : ''}</label>
+                    <select name="${f.id}" ${f.req ? 'required' : ''} class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                      ${f.options.map(opt => `<option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>`).join('')}
+                    </select>
+                  </div>
+                `;
+              }
+
+              if (f.type === 'textarea') {
+                return `
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">${f.label} ${f.req ? '*' : ''}</label>
+                    <textarea name="${f.id}" rows="2" ${f.req ? 'required' : ''} placeholder="${f.placeholder || ''}" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-cyan-500">${escapeHtml(value)}</textarea>
+                  </div>
+                `;
+              }
+
+              if (f.type === 'password') {
+                return `
+                  <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">${f.label} ${f.req ? '*' : ''}</label>
+                    <div class="relative flex items-center">
+                      <input type="password" id="input-${f.id}" name="${f.id}" value="${escapeHtml(value)}" ${f.req ? 'required' : ''} class="w-full pl-3 pr-16 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                      <div class="absolute right-2 flex items-center space-x-1">
+                        <button type="button" onclick="toggleInputMask('input-${f.id}', this)" class="p-1 text-slate-400 hover:text-slate-200">
+                          <i class="fa-regular fa-eye text-xs"></i>
+                        </button>
+                        <button type="button" onclick="openPasswordGenerator('input-${f.id}')" title="生成強密碼" class="p-1 text-cyan-400 hover:text-cyan-300">
+                          <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+
+              return `
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1">${f.label} ${f.req ? '*' : ''}</label>
+                  <input type="${f.type}" name="${f.id}" value="${escapeHtml(value)}" ${f.req ? 'required' : ''} placeholder="${f.placeholder || ''}" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-cyan-500">
+                </div>
+              `;
+            }).join('')}
+
+            <div class="pt-3">
+              <button type="submit" class="w-full py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold rounded-xl shadow-lg active:scale-95 transition">
+                ${isEdit ? '儲存變更' : '新增記錄'}
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+
+      document.getElementById('item-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const formEl = e.target;
+        const newFormData = {};
+        
+        cat.fields.forEach(f => {
+          const input = formEl.elements[f.id];
+          if (input) newFormData[f.id] = input.value;
+        });
+
+        if (isEdit) {
+          const idx = currentVault.findIndex(i => i.id === itemId);
+          if (idx !== -1) {
+            currentVault[idx].data = newFormData;
+            currentVault[idx].updatedAt = new Date().toISOString();
+          }
+        } else {
+          currentVault.push({
+            id: 'item_' + Date.now(),
+            catId: catId,
+            data: newFormData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        saveVaultToStorage();
+        showToast(isEdit ? '變更已儲存' : '已新增記錄');
+        renderCategoryView(catId);
+      });
+    }
+
+    /**
+     * Delete Item Logic
+     */
+    function deleteItem(itemId) {
+      if (!confirm('確定要刪除這筆記錄嗎？')) return;
+      const item = currentVault.find(i => i.id === itemId);
+      const catId = item ? item.catId : null;
+
+      currentVault = currentVault.filter(i => i.id !== itemId);
+      saveVaultToStorage();
+      showToast('記錄已刪除', 'fa-trash');
+
+      if (catId && activeCategory && activeCategory.id === catId) {
+        renderCategoryView(catId);
+      } else {
+        renderHomeView();
+      }
+    }
+
+    /**
+     * VIEW 6: Settings & Backup View
+     */
+    function renderSettingsView() {
+      mainContent.innerHTML = `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <button onclick="renderHomeView()" class="flex items-center space-x-1 text-xs text-slate-400 hover:text-white py-1">
+              <i class="fa-solid fa-chevron-left"></i>
+              <span>返回</span>
+            </button>
+            <span class="text-xs font-semibold text-slate-300">設定與資料管理</span>
+          </div>
+
+          <div class="bg-slate-800/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <h3 class="text-xs font-bold text-slate-200 border-b border-slate-800 pb-2">數據備份與匯入</h3>
+            
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              您的資料經過加密存儲在瀏覽器本地。建議定期備份備份檔以防數據丟失。
+            </p>
+
+            <div class="space-y-2 pt-1">
+              <button onclick="exportEncryptedBackup()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition">
+                <i class="fa-solid fa-download text-cyan-400"></i>
+                <span>匯出加密備份檔 (.json)</span>
+              </button>
+
+              <label class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 cursor-pointer transition">
+                <i class="fa-solid fa-upload text-cyan-400"></i>
+                <span>匯入備份檔 (.json)</span>
+                <input type="file" id="import-file" accept=".json" onchange="importEncryptedBackup(event)" class="hidden">
+              </label>
+            </div>
+          </div>
+
+          <div class="bg-slate-800/60 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <h3 class="text-xs font-bold text-rose-400 border-b border-slate-800 pb-2">危險區域</h3>
+            <button onclick="resetVault()" class="w-full py-2 bg-rose-950/40 hover:bg-rose-900/60 border border-rose-800/50 text-rose-300 rounded-xl text-xs font-semibold transition">
+              清空寶盒並重設主密碼
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    /**
+     * Backup & Export Functionality
+     */
+    function exportEncryptedBackup() {
+      const encryptedData = localStorage.getItem(STORAGE_DATA_KEY) || '';
+      const salt = localStorage.getItem(STORAGE_SALT_KEY) || '';
+      const verify = localStorage.getItem(STORAGE_VERIFY_KEY) || '';
+
+      const backupObj = {
+        version: '1.0',
+        timestamp: new Date().toISOString(),
+        salt: salt,
+        verify: verify,
+        vault: encryptedData
+      };
+
+      const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `password_vault_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('已完成備份檔匯出');
+    }
+
+    function importEncryptedBackup(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const backupObj = JSON.parse(evt.target.result);
+          if (!backupObj.salt || !backupObj.verify) {
+            showToast('無效的備份檔案格式', 'fa-triangle-exclamation');
+            return;
+          }
+
+          if (confirm('匯入備份將會覆蓋當前所有資料，是否繼續？')) {
+            localStorage.setItem(STORAGE_SALT_KEY, backupObj.salt);
+            localStorage.setItem(STORAGE_VERIFY_KEY, backupObj.verify);
+            localStorage.setItem(STORAGE_DATA_KEY, backupObj.vault || '');
+            showToast('備份檔案匯入成功');
+            lockVault();
+          }
+        } catch (err) {
+          showToast('無法讀取檔案', 'fa-triangle-exclamation');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function resetVault() {
+      if (confirm('警告：此操作將會清除所有密碼資料，無法復原！是否確定？')) {
+        localStorage.removeItem(STORAGE_SALT_KEY);
+        localStorage.removeItem(STORAGE_VERIFY_KEY);
+        localStorage.removeItem(STORAGE_DATA_KEY);
+        showToast('寶盒已重設');
+        initApp();
+      }
+    }
+
+    /**
+     * Password Generator Modal logic
+     */
+    function setupPasswordGenEvents() {
+      const closeBtn = document.getElementById('close-pwd-gen');
+      const regenBtn = document.getElementById('regen-pwd-btn');
+      const applyBtn = document.getElementById('apply-pwd-btn');
+      const copyGenBtn = document.getElementById('copy-gen-pwd');
+      const lenInput = document.getElementById('pwd-length');
+      const lenValDisplay = document.getElementById('pwd-len-val');
+
+      lenInput.addEventListener('input', (e) => {
+        lenValDisplay.innerText = e.target.value;
+        generateModalPassword();
+      });
+
+      closeBtn.addEventListener('click', () => pwdGenModal.classList.add('hidden'));
+      regenBtn.addEventListener('click', generateModalPassword);
+
+      copyGenBtn.addEventListener('click', () => {
+        const pwd = document.getElementById('gen-pwd-output').innerText;
+        copyToClipboard(pwd, '生成的密碼');
+      });
+
+      applyBtn.addEventListener('click', () => {
+        const pwd = document.getElementById('gen-pwd-output').innerText;
+        if (pwdTargetInputId) {
+          const inputEl = document.getElementById(pwdTargetInputId);
+          if (inputEl) inputEl.value = pwd;
+        }
+        pwdGenModal.classList.add('hidden');
+        showToast('密碼已自動套用');
+      });
+    }
+
+    function openPasswordGenerator(inputId) {
+      pwdTargetInputId = inputId;
+      pwdGenModal.classList.remove('hidden');
+      generateModalPassword();
+    }
+
+    function generateModalPassword() {
+      const len = parseInt(document.getElementById('pwd-length').value, 10);
+      const incNum = document.getElementById('pwd-inc-num').checked;
+      const incSym = document.getElementById('pwd-inc-sym').checked;
+
+      const alpha = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const nums = '0123456789';
+      const syms = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+
+      let chars = alpha;
+      if (incNum) chars += nums;
+      if (incSym) chars += syms;
+
+      let result = '';
+      for (let i = 0; i < len; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+
+      document.getElementById('gen-pwd-output').innerText = result;
+    }
+
+    /**
+     * UI Helper Utilities
+     */
+    function togglePasswordVisibility(elementId, btn) {
+      const el = document.getElementById(elementId);
+      const icon = btn.querySelector('i');
+      const rawText = el.getAttribute('data-raw');
+
+      if (el.innerText === '••••••••') {
+        el.innerText = rawText;
+        icon.className = 'fa-regular fa-eye-slash text-[10px] text-cyan-400';
+      } else {
+        el.innerText = '••••••••';
+        icon.className = 'fa-regular fa-eye text-[10px] text-slate-500';
+      }
+    }
+
+    function toggleInputMask(inputId, btn) {
+      const input = document.getElementById(inputId);
+      const icon = btn.querySelector('i');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fa-regular fa-eye-slash text-xs text-cyan-400';
+      } else {
+        input.type = 'password';
+        icon.className = 'fa-regular fa-eye text-xs text-slate-400';
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '& mygt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function escapeJsString(str) {
+      if (!str) return '';
+      return String(str).replace(/'/g, "\\'").replace(/"/g, '\\"');
+    }
+  </script>
+</body>
+</html>
+```
